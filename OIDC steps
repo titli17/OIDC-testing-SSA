@@ -1,0 +1,81 @@
+OIDC Authentication
+---------------------
+
+OIDC authentication to connect Shared services account in AWS and GitHub workflows
+
+OIDC is a secure identity protocol that lets GitHub actions authenticate with AWS without needing long-term access keys. The entire process is secure, short-lived and secret free. No static keys involved.
+
+When a GitHub workflow runs, it requires an OIDC token from Github's OIDC provider. 
+GitHub returns a signed token which includes identity claims like repository name, branch and environment.
+The workflow then sends the token to AWS STS asking to assume a specific IAM role.
+AWS STS validates the token against the trust policy of the IAM role checking if the claim match what's allowed for a specific repo or branch.
+If everything checks out, STS issues temporary AWS credentials to access AWS services only within the permissions granted by the IAM role. 
+
+
+Create an IAM user and attach policies.
+Under access management of the user (left side pane)... click on identity providers and add a provider...
+select Open ID Connect
+Add the provider url ---> https://token.actions.githubusercontent.com
+Add the audience ---> sts.amazonaws.com
+then click on add provider and now assign a role
+
+Create a new role (*)
+trusted entity type ---> web identity
+web identity provider ---> token.actions.githubusercontent.com
+audience ---> sts.amazonaws.com
+Github organization selection 
+add the repo and branch
+give permissions for the services to be accessed
+give the role name
+trust policy is formed
+role is created
+
+create new branch in repo ---> oidc-test
+in vs code terminal:
+git pull to fetch changes from remote repo to local one
+git checkout oidc-test to switch to that branch
+
+workflow is triggered when anything is committed to oidc-test
+
+name: github aws oidc
+on:
+   push:
+      branches: [oidc-test]
+permissions:
+   id-token: write
+   contents: read
+
+jobs:
+   oidc-test-job:
+      runs-on: [ubuntu-latest]
+      steps:
+         - name: Checkout Source
+           uses: actions/checkput@v3
+	 - name: Configure AWS credentials using OIDC
+	   uses: aws-actions/configure-aws-credentials@v4.1.0
+	   with:
+              aws-region: ap-south-1
+	      role-to-assume: ${{ secrets.AWS_IAM_ROLE }}
+         - name: Test AWS Credentials
+	   run: aws sts get-caller-identity
+
+
+
+in the github repo, go to settings
+then in the left pane got to secrets and variables and select actions
+create a new repository secret with the name as AWS_IAM_ROLE
+add the arn of the role previously created (*) and update the secret --> use secret key
+
+now in the vs code terminal:
+git status
+git add [the file]
+git commit -m "aws oidc test"
+git push
+
+in actions tab of github: action is running
+
+
+
+
+
+
